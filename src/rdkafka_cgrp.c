@@ -1067,8 +1067,17 @@ static void rd_kafka_cgrp_handle_JoinGroup (rd_kafka_t *rk,
                         rd_kafka_cgrp_assignor_handle_Metadata_op);
                 rd_kafka_op_set_replyq(rko, rkcg->rkcg_ops, NULL);
 
-                rd_kafka_MetadataRequest(rkb, &topics,
-                                         "partition assignor", rko);
+                rd_kafka_MetadataRequest(
+                        rkb, &topics,
+                        "partition assignor",
+                        /* cgrp_update=false:
+                         * Since this Metadata request may not be identical
+                         * to this consumer's subscription list we want to
+                         * avoid trigger a rejoin or error propagation
+                         * on receiving the response since some topics
+                         * may be missing. */
+                        rd_false,
+                        rko);
                 rd_list_destroy(&topics);
 
         } else {
@@ -3507,6 +3516,14 @@ rd_kafka_propagate_consumer_topic_errors (
 
                 rd_assert(topic->err);
 
+                /* Normalize error codes, unknown topic may be
+                 * reported by the broker, or the lack of a topic in
+                 * metadata response is figured out by the client.
+                 * Make sure the application only sees one error code
+                 * for both these cases. */
+                if (topic->err == RD_KAFKA_RESP_ERR__UNKNOWN_TOPIC)
+                        topic->err = RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART;
+
                 /* Check if this topic errored previously */
                 prev = rd_kafka_topic_partition_list_find(
                         rkcg->rkcg_errored_topics, topic->topic,
@@ -3514,6 +3531,12 @@ rd_kafka_propagate_consumer_topic_errors (
 
                 if (prev && prev->err == topic->err)
                         continue; /* This topic already reported same error */
+
+                rd_kafka_dbg(rkcg->rkcg_rk, CONSUMER|RD_KAFKA_DBG_TOPIC,
+                             "TOPICERR",
+                             "%s: %s: %s",
+                             error_prefix, topic->topic,
+                             rd_kafka_err2str(topic->err));
 
                 /* Send consumer error to application */
                 rd_kafka_q_op_topic_err(

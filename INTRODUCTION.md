@@ -1440,7 +1440,7 @@ To read more about static group membership, see [KIP-345](https://cwiki.apache.o
 
 If a consumer application subscribes to non-existent or unauthorized topics
 a consumer error will be propagated for each unavailable topic with the
-error code set to either `RD_KAFKA_RESP_ERR__UNKNOWN_TOPIC` or a
+error code set to either `RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART` or a
 broker-specific error code, such as
 `RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED`.
 
@@ -1456,6 +1456,10 @@ referenced by the client (by produce to, or consuming from, the topic, etc)
 the broker will automatically create the topic (with default partition counts
 and replication factor) if the broker configuration property
 `auto.create.topics.enable=true` is set.
+
+*Note*: A topic that is undergoing automatic creation may be reported as
+unavailable, with e.g., `RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART`, during the
+time the topic is being created and partition leaders are elected.
 
 While topic auto creation is useful for producer applications, it is not
 particularily valuable for consumer applications since even if the topic
